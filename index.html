@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام المحاسبة و نقطة البيع</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+<style>
+:root {
+--bg-color: #0f172a;
+--card-bg: #1e293b;
+--text-color: #f8fafc;
+--border-color: #334155;
+--input-bg: #0f172a;
+--primary-btn: #4f46e5;
+--primary-btn-hover: #4338ca;
+--accent-color: #06b6d4;
+}
+[data-theme="light"] {
+--bg-color: #f8fafc;
+--card-bg: #ffffff;
+--text-color: #0f172a;
+--border-color: #e2e8f0;
+--input-bg: #f1f5f9;
+--primary-btn: #4f46e5;
+--primary-btn-hover: #4338ca;
+--accent-color: #0891b2;
+}
+body {
+background-color: var(--bg-color);
+color: var(--text-color);
+font-family: system-ui, -apple-system, sans-serif;
+padding-bottom: 30px;
+transition: background-color 0.3s, color 0.3s;
+}
+.card {
+background-color: var(--card-bg);
+border-color: var(--border-color);
+color: var(--text-color);
+box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.form-control, .form-select {
+background-color: var(--input-bg);
+color: var(--text-color);
+border-color: var(--border-color);
+}
+.form-control:focus, .form-select:focus {
+background-color: var(--input-bg);
+color: var(--text-color);
+border-color: var(--primary-btn);
+box-shadow: 0 0 0 0.25rem rgba(79, 70, 229, 0.25);
+}
+.nav-tabs {
+border-bottom-color: var(--border-color);
+}
+.nav-tabs .nav-link {
+color: var(--text-color);
+border-color: transparent;
+font-weight: 500;
+}
+.nav-tabs .nav-link.active {
+background-color: var(--primary-btn);
+color: white;
+border-color: var(--primary-btn);
+border-radius: 6px;
+}
+.btn-indigo {
+background-color: var(--primary-btn);
+color: white;
+}
+.btn-indigo:hover {
+background-color: var(--primary-btn-hover);
+color: white;
+}
+.table {
+color: var(--text-color);
+}
+</style>
+</head>
+<body>
+
+<div class="container mt-3">
+<!-- الشريط العلوي -->
+<div class="d-flex justify-content-between align-items-center mb-3 card p-2 fs-6">
+<div>
+<button id="themeToggle" class="btn btn-sm btn-outline-warning" onclick="toggleTheme()">نهارًا ☀️</button>
+<span id="datetime" class="ms-2"></span>
+</div>
+<div class="d-flex align-items-center gap-1">
+<label class="form-label mb-0 small">سعر الصرف ($`1 =):</label>
+<input type="number" id="exchangeRate" class="form-control form-control-sm text-center" style="width: 100px;" value="15000" onchange="updateExchangeRate()">
+<span class="small">ل.س</span>
+</div>
+</div>
+
+<!-- التبويبات -->
+<ul class="nav nav-tabs nav-justified mb-3" id="myTab" role="tablist">
+<li class="nav-item"><button class="nav-link active" id="pos-tab" data-bs-toggle="tab" data-bs-target="#pos">البيع (POS)</button></li>
+<li class="nav-item"><button class="nav-link" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory">المخزون</button></li>
+<li class="nav-item"><button class="nav-link" id="finance-tab" data-bs-toggle="tab" data-bs-target="#finance">المالية والأرباح</button></li>
+<li class="nav-item"><button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history">السجل والإدارة</button></li>
+</ul>
+
+<div class="tab-content" id="myTabContent">
+
+<!-- قسم البيع POS -->
+<div class="tab-pane fade show active" id="pos">
+<!-- بيع سريع -->
+<div class="card p-3 mb-3 border-info">
+<h6 class="text-info">⚡ بيع سريع (قطعة غير مسجلة)</h6>
+<div class="row g-2">
+<div class="col-6"><input type="text" id="quickName" class="form-control form-control-sm" placeholder="وصف القطعة"></div>
+<div class="col-3">
+<select id="quickCurrency" class="form-select form-select-sm" onchange="calcQuickPrice()">
+<option value="USD">`$</option>
+<option value="SYP">ل.س</option>
+</select>
+</div>
+<div class="col-3"><input type="number" id="quickPrice" class="form-control form-control-sm" placeholder="السعر" oninput="calcQuickPrice()"></div>
+<div class="col-12 text-muted small" id="quickConvertedDisplay">السعر المعادل: -</div>
+<div class="col-12"><button class="btn btn-indigo btn-sm w-100" onclick="sellQuick()">تسجيل البيع المباشر</button></div>
+</div>
+</div>
+
+<!-- المنتجات المسجلة -->
+<div class="card p-3">
+<h6>📦 المنتجات المسجلة</h6>
+<input type="text" id="searchPOS" class="form-control form-control-sm mb-2" placeholder="بحث باسم القطعة أو الموديل..." oninput="renderAll()">
+<div class="table-responsive">
+<table class="table table-sm table-hover text-center align-middle">
+<thead>
+<tr>
+<th>المنتج</th>
+<th>السعر ($` / ل.س)</th>
+<th>المخزون</th>
+<th>الكمية</th>
+<th>إجراء</th>
+</tr>
+</thead>
+<tbody id="posList"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- قسم المخزون -->
+<div class="tab-pane fade" id="inventory">
+<div class="card p-3 mb-3">
+<h6>إضافة / تعديل قطعة في المخزون</h6>
+<div class="row g-2">
+<div class="col-6"><input type="text" id="prodModel" class="form-control form-control-sm" placeholder="اسم / رقم الموديل"></div>
+<div class="col-6">
+<select id="prodCurrency" class="form-select form-select-sm" onchange="autoCalcPrice()">
+<option value="USD">العملة: دولار (`$)</option>
+<option value="SYP">العملة: ليرة سورية (ل.س)</option>
+</select>
+</div>
+<div class="col-6"><input type="number" id="prodCost" class="form-control form-control-sm" placeholder="التكلفة" oninput="autoCalcPrice()"></div>
+<div class="col-6">
+<input type="number" id="prodMargin" class="form-control form-control-sm" placeholder="نسبة الربح %" value="30" oninput="autoCalcPrice()">
+</div>
+<div class="col-6"><input type="number" id="prodPrice" class="form-control form-control-sm" placeholder="سعر البيع المحسوب"></div>
+<div class="col-6"><input type="number" id="prodQty" class="form-control form-control-sm" placeholder="الكمية المتوفرة"></div>
+<div class="col-12"><button class="btn btn-success btn-sm w-100" onclick="addUpdateProduct()">حفظ في المخزون</button></div>
+</div>
+</div>
+<div class="card p-3">
+<h6>قائمة المخزون الحالية</h6>
+<div class="table-responsive">
+<table class="table table-sm text-center align-middle">
+<thead>
+<tr><th>الموديل</th><th>العملة</th><th>التكلفة</th><th>البيع</th><th>الكمية</th><th>حذف</th></tr>
+</thead>
+<tbody id="inventoryList"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- قسم المالية والأرباح -->
+<div class="tab-pane fade" id="finance">
+<div class="row g-2 mb-3">
+<div class="col-6">
+<div class="card p-2 bg-primary text-white text-center">
+<small>صافي رأس المال (بعد الدفعات)</small>
+<h6 id="totalCapitalUSD">0</h6>
+<small id="totalProfitSYP">0 ل.س</small>
+</div>
+</div>
+</div>
+
+<!-- تسجيل المسحوبات والدفعات -->
+<div class="card p-3 mb-3">
+<h6>💸 تسجيل الدفعات والمسحوبات</h6>
+<div class="row g-2">
+<div class="col-6">
+<select id="transType" class="form-select form-select-sm">
+<option value="supplier">دفعة لتاجر (تُخصم من رأس المال)</option>
+<option value="withdraw">مسحوبات شخصية (تُخصم من الربح)</option>
+</select>
+</div>
+<div class="col-6"><input type="text" id="transNote" class="form-control form-control-sm" placeholder="اسم التاجر / بيان السحب"></div>
+<div class="col-6">
+<select id="transCurr" class="form-select form-select-sm">
+<option value="USD">$`</option>
+<option value="SYP">ل.س</option>
+</select>
+</div>
+<div class="col-6"><input type="number" id="transAmount" class="form-control form-control-sm" placeholder="المبلغ"></div>
+<div class="col-12"><button class="btn btn-warning btn-sm w-100" onclick="addTransaction()">تسجيل الحركة وخصمها</button></div>
+</div>
+</div>
+
+<!-- جدول دفعات التجار -->
+<div class="card p-3 mb-3 border-warning">
+<h6 class="text-warning">🤝 سجل دفعات التجار (المسددة من رأس المال)</h6>
+<div class="table-responsive">
+<table class="table table-sm text-center align-middle mb-0">
+<thead>
+<tr>
+<th>اسم التاجر</th>
+<th>المبلغ المدفوع</th>
+<th>الوقت</th>
+<th>إجراء</th>
+</tr>
+</thead>
+<tbody id="supplierList"></tbody>
+</table>
+</div>
+</div>
+
+<!-- جدول المسحوبات الشخصية -->
+<div class="card p-3">
+<h6 class="text-danger">👤 سجل المسحوبات الشخصية</h6>
+<div class="table-responsive">
+<table class="table table-sm text-center align-middle mb-0">
+<thead>
+<tr>
+<th>البيان</th>
+<th>المبلغ</th>
+<th>الوقت</th>
+<th>إجراء</th>
+</tr>
+</thead>
+<tbody id="withdrawList"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<!-- قسم السجل والإدارة -->
+<div class="tab-pane fade" id="history">
+<div class="card p-3 mb-3">
+<h6>📋 سجل المبيعات اليومي</h6>
+<div class="table-responsive">
+<table class="table table-sm text-center align-middle">
+<thead>
+<tr><th>الوقت</th><th>القطعة</th><th>الكمية</th><th>المبلغ</th><th>الربح</th></tr>
+</thead>
+<tbody id="salesHistory"></tbody>
+</table>
+</div>
+</div>
+
+<!-- قسم تصفير وإدارة البيانات -->
+<div class="card p-3 border-danger">
+<h6 class="text-danger">⚙️ إدارة وتصفير السجلات</h6>
+<p class="small text-muted mb-2">يمكنك من هنا مسح السجلات وإعادة ضبط البيانات عند الحاجة:</p>
+<div class="d-flex gap-2">
+<button class="btn btn-outline-warning btn-sm w-50" onclick="resetSalesHistory()">تصفير سجل المبيعات فقط</button>
+<button class="btn btn-outline-danger btn-sm w-50" onclick="resetAllData()">تصفير جميع البيانات بالكامـل</button>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+let db = JSON.parse(localStorage.getItem('app_db')) || {
+rate: 15000,
+theme: 'dark',
+products: [],
+sales: [],
+transactions: []
+};
+
+function saveDB() {
+localStorage.setItem('app_db', JSON.stringify(db));
+renderAll();
+}
+
+function autoCalcPrice() {
+let cost = parseFloat(document.getElementById('prodCost').value) || 0;
+let margin = parseFloat(document.getElementById('prodMargin').value) || 0;
+let curr = document.getElementById('prodCurrency').value;
+
+if(cost > 0) {
+let price = cost + (cost * (margin / 100));
+if(curr === 'SYP') {
+price = roundToFive(price);
+} else {
+price = parseFloat(price.toFixed(2));
+}
+document.getElementById('prodPrice').value = price;
+}
+}
+
+function roundToFive(num) {
+return Math.ceil(num / 5) * 5;
+}
+
+function toggleTheme() {
+db.theme = db.theme === 'dark' ? 'light' : 'dark';
+applyTheme();
+saveDB();
+}
+
+function applyTheme() {
+document.body.setAttribute('data-theme', db.theme);
+document.getElementById('themeToggle').innerText = db.theme === 'dark' ? 'نهارًا ☀️' : 'ليلاً 🌙';
+}
+
+function updateExchangeRate() {
+db.rate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+saveDB();
+}
+
+function calcQuickPrice() {
+let price = parseFloat(document.getElementById('quickPrice').value) || 0;
+let curr = document.getElementById('quickCurrency').value;
+let converted = "";
+if(curr === 'USD') {
+let syp = roundToFive(price * db.rate);
+converted = ``${syp.toLocaleString()} ل.س (مجبورة); } else { let usd = (price / db.rate).toFixed(2); converted =latex
+{usd}`; } document.getElementById('quickConvertedDisplay').innerText = `السعر المعادل: 
+
+{converted}`;
+}
+
+function sellQuick() {
+let name = document.getElementById('quickName').value || 'قطعة سريعة';
+let price = parseFloat(document.getElementById('quickPrice').value) || 0;
+let curr = document.getElementById('quickCurrency').value;
+if(!price) return alert('يرجى كتابة السعر');
+
+let priceUSD = curr === 'USD' ? price : price / db.rate;
+let priceSYP = curr === 'SYP' ? roundToFive(price) : roundToFive(price * db.rate);
+
+db.sales.unshift({
+time: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}),
+name: name,
+qty: 1,
+priceUSD: priceUSD,
+priceSYP: priceSYP,
+profitUSD: priceUSD
+});
+
+document.getElementById('quickName').value = '';
+document.getElementById('quickPrice').value = '';
+saveDB();
+alert('تم تسجيل البيع السريع بنجاح');
+}
+
+function addUpdateProduct() {
+let model = document.getElementById('prodModel').value;
+let currency = document.getElementById('prodCurrency').value;
+let cost = parseFloat(document.getElementById('prodCost').value) || 0;
+let price = parseFloat(document.getElementById('prodPrice').value) || 0;
+let qty = parseInt(document.getElementById('prodQty').value) || 0;
+
+if(!model) return alert('يرجى أدخال اسم القطعة');
+
+let existing = db.products.find(p => p.model === model);
+if(existing) {
+existing.currency = currency;
+existing.cost = cost;
+existing.price = price;
+existing.qty += qty;
+} else {
+db.products.push({ model, currency, cost, price, qty });
+}
+
+document.getElementById('prodModel').value = '';
+document.getElementById('prodCost').value = '';
+document.getElementById('prodPrice').value = '';
+document.getElementById('prodQty').value = '';
+saveDB();
+}
+
+function deleteProduct(index) {
+if(confirm('هل تريد حذف هذه القطعة؟')) {
+db.products.splice(index, 1);
+saveDB();
+}
+}
+
+function sellProduct(index) {
+let prod = db.products[index];
+let qtyInput = parseInt(document.getElementById(sellQty_${index}`).value) || 1;
+
+if(qtyInput > prod.qty) return alert('الكمية المطلوبة غير متوفرة بالمخزون!');
+
+prod.qty -= qtyInput;
+
+let priceUSD = prod.currency === 'USD' ? prod.price * qtyInput : (prod.price * qtyInput) / db.rate;
+let priceSYP = prod.currency === 'SYP' ? roundToFive(prod.price * qtyInput) : roundToFive((prod.price * qtyInput) * db.rate);
+
+let costUSD = prod.currency === 'USD' ? prod.cost * qtyInput : (prod.cost * qtyInput) / db.rate;
+let profitUSD = priceUSD - costUSD;
+
+db.sales.unshift({
+time: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}),
+name: prod.model,
+qty: qtyInput,
+priceUSD: priceUSD,
+priceSYP: priceSYP,
+profitUSD: profitUSD
+});
+
+saveDB();
+alert('تمت عملية البيع بنجاح');
+}
+
+function addTransaction() {
+let type = document.getElementById('transType').value;
+let note = document.getElementById('transNote').value || (type === 'supplier' ? 'تاجر مجهول' : 'سحب عام');
+let curr = document.getElementById('transCurr').value;
+let amount = parseFloat(document.getElementById('transAmount').value) || 0;
+
+if(!amount) return alert('يرجى كتابة المبلغ');
+
+db.transactions.unshift({
+type, note, curr, amount,
+time: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'})
+});
+
+document.getElementById('transNote').value = '';
+document.getElementById('transAmount').value = '';
+saveDB();
+alert('تم تسجيل الحركة بنجاح');
+}
+
+function deleteTransaction(index) {
+if(confirm('هل تريد إلغاء أو حذف هذه الحركة؟')) {
+db.transactions.splice(index, 1);
+saveDB();
+}
+}
+
+/* دوال تصفير السجلات */
+function resetSalesHistory() {
+if(confirm('هل أنت تأكد من رغبتك في تصفير سجل المبيعات والبيوعات السريعة فقط؟')) {
+db.sales = [];
+saveDB();
+alert('تم تصفير سجل المبيعات بنجاح.');
+}
+}
+
+function resetAllData() {
+if(confirm('⚠️ تحذير: هل أنت متأكد من مسح وتصفير جميع البيانات (المخزون، السجل، الدفعات والمالية)؟')) {
+if(confirm('تأكيد أخير: لن تتمكن من استعادة البيانات بعد تصفيرها!')) {
+db.products = [];
+db.sales = [];
+db.transactions = [];
+saveDB();
+alert('تمت إعادة ضبط وتصفير كافة البيانات بنجاح.');
+}
+}
+}
+
+function renderAll() {
+document.getElementById('exchangeRate').value = db.rate;
+applyTheme();
+
+// 1. POS Render
+let search = document.getElementById('searchPOS').value.toLowerCase();
+let posHTML = '';
+db.products.filter(p => p.model.toLowerCase().includes(search)).forEach((p) => {
+let originalIndex = db.products.indexOf(p);
+
+let displayUSD = p.currency === 'USD' ? p.price : (p.price / db.rate).toFixed(2);
+let displaySYP = p.currency === 'SYP' ? roundToFive(p.price) : roundToFive(p.price * db.rate);
+
+posHTML += &lt;tr&gt; &lt;td&gt;&lt;b&gt;${p.model}</b></td>
+<td>
+<span class="badge bg-primary">{displaySYP.toLocaleString()} ل.س</span>
+</td>
+<td>latex
+{p.qty}&lt;/td&gt; &lt;td&gt;&lt;input type="number" id="sellQty_
+
+{originalIndex}" class="form-control form-control-sm text-center" value="1" min="1" max="{originalIndex})">بيع</button></td>
+</tr>
+`;
+});
+document.getElementById('posList').innerHTML = posHTML;
+
+// 2. Inventory Render
+let invHTML = '';
+db.products.forEach((p, i) => {
+let currSymbol = p.currency === 'USD' ? '{p.model}</td>
+<td><span class="badge bg-info text-dark">{p.cost} {p.price} {p.qty}</td>
+<td><button class="btn btn-danger btn-sm" onclick="deleteProduct(${i})"&gt;X&lt;/button&gt;&lt;/td&gt; &lt;/tr&gt;;
+});
+document.getElementById('inventoryList').innerHTML = invHTML;
+
+// 3. Finance Calculations
+let stockCapitalUSD = db.products.reduce((acc, p) => {
+let costUSD = p.currency === 'SYP' ? (p.cost / db.rate) : p.cost;
+return acc + (costUSD * p.qty);
+}, 0);
+
+let supplierPaidUSD = db.transactions
+.filter(t => t.type === 'supplier')
+.reduce((acc, t) => acc + (t.curr === 'USD' ? t.amount : t.amount / db.rate), 0);
+
+let withdrawUSD = db.transactions
+.filter(t => t.type === 'withdraw')
+.reduce((acc, t) => acc + (t.curr === 'USD' ? t.amount : t.amount / db.rate), 0);
+
+let netCapitalUSD = stockCapitalUSD - supplierPaidUSD;
+let totalProfitUSD = db.sales.reduce((acc, s) => acc + s.profitUSD, 0) - withdrawUSD;
+
+document.getElementById('totalCapitalUSD').innerText = ``${netCapitalUSD.toFixed(2)}; document.getElementById('totalCapitalSYP').innerText =${roundToFive(netCapitalUSD * db.rate).toLocaleString()} ل.س;
+
+document.getElementById('totalProfitUSD').innerText = ``${totalProfitUSD.toFixed(2)}; document.getElementById('totalProfitSYP').innerText =${roundToFive(totalProfitUSD * db.rate).toLocaleString()} ل.س;
+
+// عرض دفعات التجار
+let supplierHTML = '';
+db.transactions.forEach((t, index) => {
+if(t.type === 'supplier') {
+let currSymbol = t.curr === 'USD' ? '$' : 'ل.س'; supplierHTML +=
+<tr>
+<td><b>{t.amount.toLocaleString()} {t.time}</td>
+<td><button class="btn btn-outline-danger btn-sm p-0 px-2" onclick="deleteTransaction(${index})"&gt;حذف&lt;/button&gt;&lt;/td&gt; &lt;/tr&gt;;
+}
+});
+document.getElementById('supplierList').innerHTML = supplierHTML || '<tr><td colspan="4" class="text-muted small">لا توجد دفعات تجار مسجلة</td></tr>';
+
+// عرض المسحوبات الشخصية
+let withdrawHTML = '';
+db.transactions.forEach((t, index) => {
+if(t.type === 'withdraw') {
+let currSymbol = t.curr === 'USD' ? '$' : 'ل.س'; withdrawHTML +=
+<tr>
+<td><b>{t.amount.toLocaleString()} {t.time}</td>
+<td><button class="btn btn-outline-danger btn-sm p-0 px-2" onclick="deleteTransaction(${index})"&gt;حذف&lt;/button&gt;&lt;/td&gt; &lt;/tr&gt;;
+}
+});
+document.getElementById('withdrawList').innerHTML = withdrawHTML || '<tr><td colspan="4" class="text-muted small">لا توجد مسحوبات شخصية مسجلة</td></tr>';
+
+// 4. History Render
+let historyHTML = '';
+db.sales.forEach(s => {
+historyHTML += &lt;tr&gt; &lt;td&gt;${s.time}</td>
+<td>{s.qty}</td>
+<td>{s.priceSYP.toLocaleString()} ل.س</small></td>
+<td class="text-success">$${s.profitUSD.toFixed(1)}</td>
+</tr>
+`;
+});
+document.getElementById('salesHistory').innerHTML = historyHTML;
+}
+
+setInterval(() => {
+document.getElementById('datetime').innerText = new Date().toLocaleTimeString('ar-EG');
+}, 1000);
+
+renderAll();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
